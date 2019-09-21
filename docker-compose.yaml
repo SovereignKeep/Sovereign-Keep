@@ -5,8 +5,9 @@
 # https://docs.docker.com/compose/reference/envvars/
 #
 
-services:
-  
+version: '3.7'
+
+services:  
   gitlab-web:
     image: gitlab/gitlab-ce:latest
     container_name: gitlab-web
