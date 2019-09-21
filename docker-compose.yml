@@ -1,0 +1,178 @@
+#
+# Useful references:
+# https://docs.docker.com/compose/compose-file/
+# https://docs.docker.com/compose/reference/overview/#use--f-to-specify-name-and-path-of-one-or-more-compose-files
+# https://docs.docker.com/compose/reference/envvars/
+#
+
+services:
+  
+  gitlab-web:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab-web
+    hostname: gitlab-web
+    volumes:
+      - './gitlab-config:/etc/gitlab'
+      - './gitlab-logs:/var/log/gitlab'
+      - './gitlab-data:/var/opt/gitlab'
+    ports:
+      - '2222:22'
+      - '8080:80'
+      - '443:443'
+      - '4567:4567'
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        registry_external_url 'http://localhost:4567'
+        registry['enable'] = true
+        unicorn['socket'] = '/opt/gitlab/var/unicorn/gitlab.socket'
+    networks:
+      - gitlab-network
+
+  gitlab-runner1:
+    image: gitlab/gitlab-runner:latest
+    container_name: gitlab-runner1
+    hostname: gitlab-runner1
+    volumes:
+      - './gitlab-runner1-config:/etc/gitlab-runner:Z'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+    networks:
+      - gitlab-network
+
+  mssql:
+    image: bitwarden/mssql:1.32.0
+    container_name: bitwarden-mssql
+    restart: always
+    volumes:
+      - mssql_data:/var/opt/mssql/data
+      - ../logs/mssql:/var/opt/mssql/log
+      - ../mssql/backups:/etc/bitwarden/mssql/backups
+    env_file:
+      - mssql.env
+      - ../env/uid.env
+      - ../env/mssql.override.env
+
+  web:
+    image: bitwarden/web:2.12.0
+    container_name: bitwarden-web
+    restart: always
+    volumes:
+      - ../web:/etc/bitwarden/web
+    env_file:
+      - global.env
+      - ../env/uid.env
+
+  attachments:
+    image: bitwarden/attachments:1.32.0
+    container_name: bitwarden-attachments
+    restart: always
+    volumes:
+      - ../core/attachments:/etc/bitwarden/core/attachments
+    env_file:
+      - global.env
+      - ../env/uid.env
+
+  api:
+    image: bitwarden/api:1.32.0
+    container_name: bitwarden-api
+    restart: always
+    volumes:
+      - ../core:/etc/bitwarden/core
+      - ../ca-certificates:/etc/bitwarden/ca-certificates
+      - ../logs/api:/etc/bitwarden/logs
+    env_file:
+      - global.env
+      - ../env/uid.env
+      - ../env/global.override.env
+
+  identity:
+    image: bitwarden/identity:1.32.0
+    container_name: bitwarden-identity
+    restart: always
+    volumes:
+      - ../identity:/etc/bitwarden/identity
+      - ../core:/etc/bitwarden/core
+      - ../ca-certificates:/etc/bitwarden/ca-certificates
+      - ../logs/identity:/etc/bitwarden/logs
+    env_file:
+      - global.env
+      - ../env/uid.env
+      - ../env/global.override.env
+
+  admin:
+    image: bitwarden/admin:1.32.0
+    container_name: bitwarden-admin
+    restart: always
+    depends_on:
+      - mssql
+    volumes:
+      - ../core:/etc/bitwarden/core
+      - ../ca-certificates:/etc/bitwarden/ca-certificates
+      - ../logs/admin:/etc/bitwarden/logs
+    env_file:
+      - global.env
+      - ../env/uid.env
+      - ../env/global.override.env
+
+  icons:
+    image: bitwarden/icons:1.32.0
+    container_name: bitwarden-icons
+    restart: always
+    volumes:
+      - ../ca-certificates:/etc/bitwarden/ca-certificates
+      - ../logs/icons:/etc/bitwarden/logs
+    env_file:
+      - global.env
+      - ../env/uid.env
+
+  notifications:
+    image: bitwarden/notifications:1.32.0
+    container_name: bitwarden-notifications
+    restart: always
+    volumes:
+      - ../ca-certificates:/etc/bitwarden/ca-certificates
+      - ../logs/notifications:/etc/bitwarden/logs
+    env_file:
+      - global.env
+      - ../env/uid.env
+      - ../env/global.override.env
+
+  events:
+    image: bitwarden/events:1.32.0
+    container_name: bitwarden-events
+    restart: always
+    volumes:
+      - ../ca-certificates:/etc/bitwarden/ca-certificates
+      - ../logs/events:/etc/bitwarden/logs
+    env_file:
+      - global.env
+      - ../env/uid.env
+      - ../env/global.override.env
+
+  nginx:
+    image: bitwarden/nginx:1.32.0
+    container_name: bitwarden-nginx
+    restart: always
+    depends_on:
+      - web
+      - admin
+      - api
+      - identity
+    ports:
+      - '80:8080'
+      - '443:8443'
+    volumes:
+      - ../nginx:/etc/bitwarden/nginx
+      - ../letsencrypt:/etc/letsencrypt
+      - ../ssl:/etc/ssl
+      - ../logs/nginx:/var/log/nginx
+    env_file:
+      - ../env/uid.env
+
+volumes:
+  mssql_data:
+
+networks:
+  gitlab-network:
+    name: gitlab-network
+
